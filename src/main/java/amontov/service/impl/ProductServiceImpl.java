@@ -1,93 +1,69 @@
 package amontov.service.impl;
 
-import amontov.Error.Error;
 import amontov.models.Product;
 import amontov.repository.ProductRepository;
 import amontov.service.ProductService;
-import lombok.AllArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
-@AllArgsConstructor
 public class ProductServiceImpl implements ProductService {
-    private final ProductRepository repository;
+    private ProductRepository repository;
+
+    @Autowired
+    public void setRepository(ProductRepository repository) {
+        this.repository = repository;
+    }
 
     @Override
-    public List<Product> showAll() {
+    public List<Product> getAll() {
         return repository.findAll();
     }
 
     @Override
     public List<Product> getFilter() {
-        return repository.findByOrderByName();
+        return repository.findByOrderById();
     }
 
     @Override
-    public Optional<Product> getOne(int id) {
-        return repository.findById(id);
-    }
-
-    @Override
-    public Product addNewProduct(Product newProduct) {
-        if (repository.findByName(newProduct.getName()).isPresent() &&
-                repository.findByManufacture(newProduct.getManufacture()).isPresent()) {
-            return null;
-        } else {
-            return repository.save(newProduct);
+    public Product getOne(long id) {
+        try {
+            return repository.findById(id).get();
+        } catch (NullPointerException e) {
+            throw new RuntimeException();
         }
     }
 
     @Override
-    public String changeQuantityProduct(int id, int quantity) {
-        if (checkProduct(id)) {
-            Product product = repository.findById(id).get();
-            product.setQuantity(product.getQuantity() + quantity);
-            return ("the product was added in quantity " + quantity);
+    public void addProduct(Product newProduct) {
+        if (repository.findByName(newProduct.getName()).isPresent()) {
+            Product product = repository.findByName(newProduct.getName()).get();
+            newProduct.setQuantity(newProduct.getQuantity() + product.getQuantity());
+            repository.delete(product);
+            repository.save(newProduct);
         } else {
-            return null;
+            repository.save(newProduct);
         }
     }
 
     @Override
-    public String toBuyProduct(int id, int newQuantity) {
-        if (checkProduct(id)) {
+    public void deleteProduct(long id, int quantity) {
+        if (repository.findById(id).isPresent()) {
             Product product = repository.findById(id).get();
-            if (product.getQuantity() - newQuantity > 0) {
-                product.setQuantity(product.getQuantity() - newQuantity);
+            if (product.getQuantity() > quantity) {
+                product.setQuantity(product.getQuantity() - quantity);
+                repository.deleteById(id);
                 repository.save(product);
-                return ("the product was purchased in quantity " + newQuantity);
-            } else {
-                return new Error().errorToBuy();
             }
-        } else {
-            return null;
-        }
-
-    }
-
-    @Override
-    public String deleteProduct(int id) {
-        if (checkProduct(id)) {
-            Product product = repository.findById(id).get();
-            if (product.getQuantity() == 0) {
-                repository.delete(product);
-                return ("the product has been removed");
-            } else {
-               return new Error().errorDelete();
+            if (product.getQuantity() == quantity) {
+                repository.deleteById(id);
             }
+            if (product.getQuantity() < quantity) {
+
+            }
+
         }
-        return null;
-    }
-
-    public void deleteAll() {
-        repository.deleteAll();
-    }
-
-    private boolean checkProduct(int id) {
-        return repository.findById(id).isPresent();
     }
 }
-
