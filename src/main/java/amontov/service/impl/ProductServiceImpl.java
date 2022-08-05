@@ -1,69 +1,93 @@
 package amontov.service.impl;
 
+import amontov.Error.Error;
 import amontov.models.Product;
 import amontov.repository.ProductRepository;
 import amontov.service.ProductService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
+@AllArgsConstructor
 public class ProductServiceImpl implements ProductService {
-    private ProductRepository repository;
-
-    @Autowired
-    public void setRepository(ProductRepository repository) {
-        this.repository = repository;
-    }
+    private final ProductRepository repository;
 
     @Override
-    public List<Product> getAll() {
+    public List<Product> showAll() {
         return repository.findAll();
     }
 
     @Override
     public List<Product> getFilter() {
-        return repository.findByOrderById();
+        return repository.findByOrderByName();
     }
 
     @Override
-    public Product getOne(long id) {
-        try {
-            return repository.findById(id).get();
-        } catch (NullPointerException e) {
-            throw new RuntimeException();
-        }
+    public Optional<Product> getOne(int id) {
+        return repository.findById(id);
     }
 
     @Override
-    public void addProduct(Product newProduct) {
-        if (repository.findByName(newProduct.getName()).isPresent()) {
-            Product product = repository.findByName(newProduct.getName()).get();
-            newProduct.setQuantity(newProduct.getQuantity() + product.getQuantity());
-            repository.delete(product);
-            repository.save(newProduct);
+    public Product addNewProduct(Product newProduct) {
+        if (repository.findByName(newProduct.getName()).isPresent() &&
+                repository.findByManufacture(newProduct.getManufacture()).isPresent()) {
+            return null;
         } else {
-            repository.save(newProduct);
+            return repository.save(newProduct);
         }
     }
 
     @Override
-    public void deleteProduct(long id, int quantity) {
-        if (repository.findById(id).isPresent()) {
+    public String changeQuantityProduct(int id, int quantity) {
+        if (checkProduct(id)) {
             Product product = repository.findById(id).get();
-            if (product.getQuantity() > quantity) {
-                product.setQuantity(product.getQuantity() - quantity);
-                repository.deleteById(id);
-                repository.save(product);
-            }
-            if (product.getQuantity() == quantity) {
-                repository.deleteById(id);
-            }
-            if (product.getQuantity() < quantity) {
-
-            }
-
+            product.setQuantity(product.getQuantity() + quantity);
+            return ("the product was added in quantity " + quantity);
+        } else {
+            return null;
         }
+    }
+
+    @Override
+    public String toBuyProduct(int id, int newQuantity) {
+        if (checkProduct(id)) {
+            Product product = repository.findById(id).get();
+            if (product.getQuantity() - newQuantity > 0) {
+                product.setQuantity(product.getQuantity() - newQuantity);
+                repository.save(product);
+                return ("the product was purchased in quantity " + newQuantity);
+            } else {
+                return new Error().errorToBuy();
+            }
+        } else {
+            return null;
+        }
+
+    }
+
+    @Override
+    public String deleteProduct(int id) {
+        if (checkProduct(id)) {
+            Product product = repository.findById(id).get();
+            if (product.getQuantity() == 0) {
+                repository.delete(product);
+                return ("the product has been removed");
+            } else {
+               return new Error().errorDelete();
+            }
+        }
+        return null;
+    }
+
+    public void deleteAll() {
+        repository.deleteAll();
+    }
+
+    private boolean checkProduct(int id) {
+        return repository.findById(id).isPresent();
     }
 }
+

@@ -1,43 +1,59 @@
 package amontov.Config;
 
+import org.apache.tomcat.dbcp.dbcp2.BasicDataSource;
 import org.hibernate.jpa.HibernatePersistenceProvider;
-import org.springframework.boot.autoconfigure.orm.jpa.HibernateProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
+import org.springframework.dao.annotation.PersistenceExceptionTranslationPostProcessor;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
-
-import javax.annotation.Resource;
 import javax.sql.DataSource;
 import java.util.Properties;
 
 @Configuration
 @EnableTransactionManagement
-@ComponentScan("amontov")
 @PropertySource("classpath:app.properties")
-@EnableJpaRepositories("amontov.repository")
+@EnableJpaRepositories(basePackages = {"amontov.repository"},
+                        entityManagerFactoryRef = "entityManager",
+                       transactionManagerRef = "jpaTransactionManager")
 public class DataConfig {
-    private static final String PROP_HIBERNATE_SHOW_SQL = "db.hibernate.show_sql";
-    private static final String PROP_HIBERNATE_DIALECT = "db.hibernate.dialect";
-    private static final String PROP_HIBERNATE_HBM2DDL_AUTO = "db.hibernate.hbm2ddl.auto";
-
-    @Resource
     private Environment env;
-    @Bean
-    public DataSource dataSource () {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(env.getRequiredProperty("db.driver"));
-        dataSource.setPassword("db.password");
-        dataSource.setUsername("db.username");
-        dataSource.setUrl("db.url");
 
+    @Autowired
+    public void setEnv(Environment env) {
+        this.env = env;
+    }
+
+    public DataConfig() {
+        super();
+    }
+    @Bean
+    public DataSource dataSource() {
+        BasicDataSource dataSource = new BasicDataSource();
+        dataSource.setDriverClassName(env.getRequiredProperty("db.driver"));
+        dataSource.setUrl(env.getRequiredProperty("db.url"));
+        dataSource.setUsername(env.getRequiredProperty("db.username"));
+        dataSource.setPassword(env.getRequiredProperty("db.password"));
         return dataSource;
+    }
+
+    @Bean
+    public PersistenceExceptionTranslationPostProcessor exceptionTranslation () {
+        return new PersistenceExceptionTranslationPostProcessor();
+    }
+
+    final Properties hibernateProp() {
+        Properties hibernateProp = new Properties();
+        hibernateProp.setProperty("db.hibernate.dialect", env.getRequiredProperty("db.hibernate.dialect"));
+        hibernateProp.setProperty("db.hibernate.show_sql", env.getRequiredProperty("db.hibernate.show_sql"));
+        hibernateProp.setProperty("db.hibernate.hbm2ddl.auto", env.getRequiredProperty("db.hibernate.hbm2ddl.auto"));
+
+        return hibernateProp;
     }
 
     @Bean
@@ -46,26 +62,17 @@ public class DataConfig {
         entityManager.setDataSource(dataSource());
         entityManager.setPersistenceProviderClass(HibernatePersistenceProvider.class);
         entityManager.setPackagesToScan(env.getRequiredProperty("db.entitymanager.packages.to.scan"));
-
-        entityManager.setJpaProperties(getHibernateProperties());
+        entityManager.setJpaProperties(hibernateProp());
 
         return entityManager;
     }
-
     @Bean
-    public JpaTransactionManager transactionManager () {
-        JpaTransactionManager transactionManager = new JpaTransactionManager();
-        transactionManager.setEntityManagerFactory(entityManager().getObject());
-
-        return transactionManager;
-    }
-
-    private Properties getHibernateProperties() {
-        Properties properties = new Properties();
-        properties.put(PROP_HIBERNATE_DIALECT, env.getRequiredProperty("db.hibernate.dialect"));
-        properties.put(PROP_HIBERNATE_SHOW_SQL, env.getRequiredProperty("db.hibernate.show_sql"));
-        properties.put(PROP_HIBERNATE_HBM2DDL_AUTO, env.getRequiredProperty("db.hibernate.hbm2ddl.auto"));
-
-        return properties;
+    public JpaTransactionManager jpaTransactionManager () {
+        JpaTransactionManager jpaTransactionManager = new JpaTransactionManager();
+        jpaTransactionManager.setEntityManagerFactory(entityManager().getObject());
+        return jpaTransactionManager;
     }
 }
+
+
+
